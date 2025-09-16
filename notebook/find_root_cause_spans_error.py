@@ -6,7 +6,7 @@ from aliyun.log import LogClient, GetLogsRequest
 from utils.constants import ERROR_TRACES  # 为一个超参数,表示查询的错误trace数量上限
 from datetime import datetime
 
-# 加载.env文件
+# 加载环境变量
 
 class FindRootCauseSpans:
     # 核心修改点：__init__ 的参数

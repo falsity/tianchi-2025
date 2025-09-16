@@ -22,11 +22,10 @@ else
 fi
 
 # Activate virtual environment
-echo "🔧 Activating virtual environment..."
+echo "🔧 Setting up virtual environment..."
 if [ ! -d "venv" ]; then
-    echo "❌ Virtual environment not found. Please create it first:"
-    echo "   python3 -m venv venv"
-    exit 1
+    echo "📦 Creating virtual environment..."
+    python3 -m venv venv
 fi
 
 source venv/bin/activate

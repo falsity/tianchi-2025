@@ -10,6 +10,15 @@ https://tianchi.aliyun.com/specials/promotion/2025aicloudnativecompetition
 
 Place your input data in `dataset/input.jsonl` following the required format.
 
+### Environment Variables
+
+```bash
+export ALIBABA_CLOUD_ACCESS_KEY_ID="your-access-key-id"
+export ALIBABA_CLOUD_ACCESS_KEY_SECRET="your-access-key-secret"
+export ALIBABA_CLOUD_ROLE_ARN="acs:ram::1672753017899339:role/tianchi-user-a"
+export ALIBABA_CLOUD_ROLE_SESSION_NAME="my-sls-access"
+```
+
 ### Running the Analysis
 
 Execute the analysis script:

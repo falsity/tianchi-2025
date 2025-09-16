@@ -1,5 +1,4 @@
 # Core dependencies
-python-dotenv>=1.0.0
 pandas>=1.5.0
 matplotlib>=3.5.0
 numpy>=1.21.0
@@ -16,4 +15,4 @@ alibabacloud-sts20150401>=1.1.0
 
 # Jupyter notebook dependencies
 jupyter>=1.0.0
-ipykernel>=6.0.0 
+ipykernel>=6.0.0

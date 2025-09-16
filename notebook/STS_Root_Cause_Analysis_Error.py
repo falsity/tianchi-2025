@@ -16,8 +16,8 @@ LOGSTORE_NAME = "logstore-tracing"
 REGION = "cn-qingdao"
 
 # Environment variables
-STS_ROLE_ARN = 'acs:ram::1672753017899339:role/tianchi-user-a'
-STS_SESSION_NAME = "my-sls-access"
+STS_ROLE_ARN = os.getenv('ALIBABA_CLOUD_ROLE_ARN','acs:ram::1672753017899339:role/tianchi-user-a')
+STS_SESSION_NAME = os.getenv('ALIBABA_CLOUD_ROLE_SESSION_NAME', 'my-sls-access')
 
 def analyze_error_root_cause(start_time, end_time, candidate_root_causes):
     """
@@ -38,7 +38,7 @@ def analyze_error_root_cause(start_time, end_time, candidate_root_causes):
         access_key_secret = os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET')
 
         if not all([access_key_id, access_key_secret, STS_ROLE_ARN]):
-            print("❌ 角色ARN缺失! 请在.env文件中配置 ALIBABA_CLOUD_ACCESS_KEY_ID, ALIBABA_CLOUD_ACCESS_KEY_SECRET")
+            print("❌ 角色ARN缺失! 请配置环境变量 ALIBABA_CLOUD_ACCESS_KEY_ID, ALIBABA_CLOUD_ACCESS_KEY_SECRET 和 ALIBABA_CLOUD_ROLE_ARN")
             return None
 
         config = open_api_models.Config(

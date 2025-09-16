@@ -29,7 +29,7 @@ class TestCMSQuery(unittest.TestCase):
         self.account_a_access_key_secret = os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET')
 
         # --- 账号B中角色的ARN ---
-        self.role_arn_in_account_b = "acs:ram::1672753017899339:role/tianchi-user-a"
+        self.role_arn_in_account_b = os.getenv('ALIBABA_CLOUD_ROLE_ARN', 'acs:ram::1672753017899339:role/tianchi-user-a')
 
         # CMS相关配置
         self.workspace = "quanxi-tianchi-test"

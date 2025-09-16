@@ -226,8 +226,8 @@ def analyze_latency_root_cause(anomaly_start_time: str, anomaly_end_time: str, c
             # 获取环境变量中的主账号凭证
             MAIN_ACCOUNT_ACCESS_KEY_ID = os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID')
             MAIN_ACCOUNT_ACCESS_KEY_SECRET = os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET')
-            STS_ROLE_ARN = "acs:ram::1672753017899339:role/tianchi-user-a"
-            STS_SESSION_NAME = "my-sls-access"
+            ALIBABA_CLOUD_ROLE_ARN = os.getenv('ALIBABA_CLOUD_ROLE_ARN', 'acs:ram::1672753017899339:role/tianchi-user-a')
+            STS_SESSION_NAME = os.getenv('ALIBABA_CLOUD_ROLE_SESSION_NAME', 'my-sls-access')
 
             if not MAIN_ACCOUNT_ACCESS_KEY_ID or not MAIN_ACCOUNT_ACCESS_KEY_SECRET:
                 print("❌ 环境变量未设置: ALIBABA_CLOUD_ACCESS_KEY_ID 或 ALIBABA_CLOUD_ACCESS_KEY_SECRET")
@@ -240,7 +240,7 @@ def analyze_latency_root_cause(anomaly_start_time: str, anomaly_end_time: str, c
             )
 
             request = AssumeRoleRequest.AssumeRoleRequest()
-            request.set_RoleArn(STS_ROLE_ARN)
+            request.set_RoleArn(ALIBABA_CLOUD_ROLE_ARN)
             request.set_RoleSessionName(STS_SESSION_NAME)
             request.set_DurationSeconds(3600)
 
