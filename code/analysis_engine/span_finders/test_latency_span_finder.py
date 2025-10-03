@@ -3,7 +3,7 @@ import sys
 import pytest
 import logging
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # 设置正确的Python路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -67,8 +67,12 @@ def test_find_top_95_percent_spans():
     end_time = "2025-08-28 15:13:03"
     duration_threshold = 1000000  # 1秒
     limit_num = 1000
-    normal_start_time = "2025-08-28 14:58:03"
-    normal_end_time = "2025-08-28 15:03:03"
+
+    anomaly_start = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
+    normal_start = anomaly_start - timedelta(hours=1)
+    normal_end = anomaly_start
+    normal_start_time = normal_start.strftime("%Y-%m-%d %H:%M:%S")
+    normal_end_time = normal_end.strftime("%Y-%m-%d %H:%M:%S")
 
     try:
         # 创建真实的客户端
