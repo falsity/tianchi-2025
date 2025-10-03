@@ -11,7 +11,7 @@ from typing import List, Optional
 from config import config_manager
 from sls_client_manager import sls_client_manager, SLSClientError
 from credential_manager import CredentialError
-from find_root_cause_spans_error import FindRootCauseSpans
+from .span_finders.error_span_finder import FindRootCauseSpans
 from .shared_models import AnalysisResult
 
 # 设置日志记录器

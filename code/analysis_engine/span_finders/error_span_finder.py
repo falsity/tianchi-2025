@@ -1,10 +1,14 @@
 # 我们用python处理得到root cause的span
 
 import os
+import logging
 
 from aliyun.log import LogClient, GetLogsRequest
 from utils.constants import ERROR_TRACES  # 为一个超参数,表示查询的错误trace数量上限
 from datetime import datetime
+
+# 设置日志记录器
+logger = logging.getLogger(__name__)
 
 # 加载环境变量
 
@@ -38,9 +42,9 @@ class FindRootCauseSpans:
         else:
             self.end_time = int(end_time)
 
-        print(f"[FindRootCauseSpans] 初始化完成。")
-        print(f"  开始时间: {datetime.fromtimestamp(self.start_time)} (时间戳: {self.start_time})")
-        print(f"  结束时间: {datetime.fromtimestamp(self.end_time)} (时间戳: {self.end_time})")
+        logger.info("FindRootCauseSpans 初始化完成")
+        logger.info("开始时间: %s (时间戳: %d)", datetime.fromtimestamp(self.start_time), self.start_time)
+        logger.info("结束时间: %s (时间戳: %d)", datetime.fromtimestamp(self.end_time), self.end_time)
 
 
     def root_cause_spans_query(self):
@@ -65,12 +69,15 @@ class FindRootCauseSpans:
             line=ERROR_TRACES
         )
 
-        print (self.project_name, self.logstore_name, self.region)
-        print (f"[FindRootCauseSpans] 查询时间范围: {datetime.fromtimestamp(self.start_time).strftime('%Y-%m-%d %H:%M:%S')} ~ {datetime.fromtimestamp(self.end_time).strftime('%Y-%m-%d %H:%M:%S')}. 查询条件: {all_spans_query}")
+        logger.debug("项目配置: project=%s, logstore=%s, region=%s", self.project_name, self.logstore_name, self.region)
+        logger.info("查询时间范围: %s ~ %s, 查询条件: %s", 
+                   datetime.fromtimestamp(self.start_time).strftime('%Y-%m-%d %H:%M:%S'),
+                   datetime.fromtimestamp(self.end_time).strftime('%Y-%m-%d %H:%M:%S'),
+                   all_spans_query)
         response = self.client.get_logs(request)
         all_spans = [log_item.get_contents() for log_item in response.get_logs()] if response else []
 
-        print(f"总共查询到的span数量: {len(all_spans)}")
+        logger.info("总共查询到的span数量: %d", len(all_spans))
 
         # 按traceId分组
         trace_groups = {}
@@ -81,15 +88,16 @@ class FindRootCauseSpans:
                     trace_groups[trace_id] = []
                 trace_groups[trace_id].append(span)
 
-        print(f"涉及的trace数量: {len(trace_groups)}")
+        logger.info("涉及的trace数量: %d", len(trace_groups))
 
         # 对每个trace组进行处理
         all_root_cause_span_ids = []
         for trace_id, trace_logs in trace_groups.items():
             root_cause_span_ids = self.process_one_trace_log(trace_logs)
-            # print(f"trace_id: {trace_id}, root_cause_span_ids: {root_cause_span_ids}")
+            logger.debug("trace_id: %s, root_cause_span_ids: %s", trace_id, root_cause_span_ids)
             all_root_cause_span_ids.extend(root_cause_span_ids)
 
+        logger.info("总共找到根因span数量: %d", len(all_root_cause_span_ids))
         return all_root_cause_span_ids
 
     def process_one_trace_log(self, trace_log: list) -> list[str]:
@@ -153,7 +161,7 @@ def test(project_name: str, logstore_name: str, region: str, start_time: str, en
 
     # 将创建好的 client 传进去
     find_root_cause_spans = FindRootCauseSpans(client, project_name, logstore_name, region, start_time, end_time)
-    print(find_root_cause_spans.root_cause_spans_query())
+    logger.info("生成的查询语句: %s", find_root_cause_spans.root_cause_spans_query())
 
 if __name__ == "__main__":
     test("proj-xtrace-ee483ec157740929c4cb92d4ff85f-cn-qingdao", "logstore-tracing", "cn-qingdao", "2025-06-14 21:42:43", "2025-06-14 21:47:43")
