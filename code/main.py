@@ -378,7 +378,9 @@ class Main:
         
         # 生成带时间戳的输出文件名
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_filename = f"dataset/output_main_{timestamp}.jsonl"
+        # 从输入文件名提取基础名称（不包含路径和扩展名）
+        input_basename = os.path.splitext(os.path.basename(self.file_name))[0]
+        output_filename = f"dataset/output_main_{input_basename}_{timestamp}.jsonl"
         
         results = self.process_all_problems(
             input_data=input_data, output_file_path=output_filename
@@ -401,5 +403,7 @@ class Main:
 
 
 if __name__ == "__main__":
-    main = Main("dataset/input.jsonl")
+    main = Main("dataset/test.jsonl")
+    # main = Main("dataset/A榜题目.jsonl")
+    # main = Main("dataset/B榜题目.jsonl")
     main.run()
