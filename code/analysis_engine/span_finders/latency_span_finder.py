@@ -1,4 +1,4 @@
-""" 调用独占时间算子，分析trace的独占时间是在什么地方增加的。对于对独占时间贡献前95%的span，我们找出来。
+"""调用独占时间算子，分析trace的独占时间是在什么地方增加的。对于对独占时间贡献前95%的span，我们找出来。
 
 新增功能：
 1. 支持计算normal时间段内每个serviceName的平均独占时间
@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 
 # 环境变量配置
 from aliyun.log import LogClient, GetLogsRequest
+
+
 # 调用自定义函数 trace_exclusive_duration 计算每个 span 的独占时间
 def get_spl_query(duration_threshold: int, limit_num: int) -> str:
     # print (f"duration_threshold: {duration_threshold}, limit_num: {limit_num}")
@@ -155,6 +157,7 @@ order by span_id limit {limit_num}
 """
     return spl
 
+
 # 上面这个SPL语句执行完成后，会得到类似下面的结果：每个trace_id对应一行。有三列 span_id、span_index、exclusive_duration, 每一列都是array类型，长度相等。
 # 我们需要将所有span_id对应的exclusive_duration找出来，排序，然后把 exclusive_duration 占前95% 的span_id找出来
 """
@@ -163,10 +166,23 @@ span_id,    span_index,    exclusive_duration
 ["a7ae3f4e057518c9","2c6c77123d1d76df","9951956134123686","2b3f640090a8c85d","be5dc34095786ad0","5d2b07e043008454"],    [1,2,3,4,5,6],     [919000,198000,761127,1954869,530163,1000000]
 """
 
+
 class FindRootCauseSpansRT:
-    def __init__(self, client, project_name: str, logstore_name: str, region: str, start_time: str, end_time: str,
-                 duration_threshold: int = 1000000, limit_num: int = 1000, normal_start_time: str = None,  # type: ignore
-                 normal_end_time: str = None, minus_average: bool = False, only_top1_per_trace: bool = False): # type: ignore
+    def __init__(
+        self,
+        client,
+        project_name: str,
+        logstore_name: str,
+        region: str,
+        start_time: str,
+        end_time: str,
+        duration_threshold: int = 1000000,
+        limit_num: int = 1000,
+        normal_start_time: str = None,  # type: ignore
+        normal_end_time: str = None,
+        minus_average: bool = False,
+        only_top1_per_trace: bool = False,
+    ):  # type: ignore
         """
         初始化FindRootCauseSpansRT类
 
@@ -225,7 +241,11 @@ class FindRootCauseSpansRT:
 
         try:
             response = self.client.get_logs(request)
-            logs = [log_item.get_contents() for log_item in response.get_logs()] if response else []
+            logs = (
+                [log_item.get_contents() for log_item in response.get_logs()]
+                if response
+                else []
+            )
             logger.info("查询到的日志条数: %d", len(logs))
 
             return self._process_exclusive_duration_data(logs)
@@ -247,7 +267,9 @@ class FindRootCauseSpansRT:
         # 输出处理模式，默认选择处理所有span
         if self.only_top1_per_trace:
             if self.minus_average and self.span_average_durations:
-                mode_description = "只处理每个trace中调整后独占时间排top-1的span（先减去平均值再选择）"
+                mode_description = (
+                    "只处理每个trace中调整后独占时间排top-1的span（先减去平均值再选择）"
+                )
             else:
                 mode_description = "只处理每个trace中原始独占时间排top-1的span"
         else:
@@ -256,20 +278,28 @@ class FindRootCauseSpansRT:
 
         # 收集所有的span_id和对应的独占时间
         span_duration_mapping = {}  # {span_id: exclusive_duration}
-        span_service_mapping = {}   # {span_id: (serviceName, spanName)} - 新增：直接从span_list获取
+        span_service_mapping = {}  # {span_id: (serviceName, spanName)} - 新增：直接从span_list获取
 
         for log in logs:
             try:
                 # 解析数组字段
-                span_ids = self._parse_array_field(log.get('span_id', '[]'))
-                span_indices = self._parse_array_field(log.get('span_index', '[]'))
-                exclusive_durations = self._parse_array_field(log.get('exclusive_duration', '[]'))
-                span_list = self._parse_array_field(log.get('span_list', '[]'))
+                span_ids = self._parse_array_field(log.get("span_id", "[]"))
+                span_indices = self._parse_array_field(log.get("span_index", "[]"))
+                exclusive_durations = self._parse_array_field(
+                    log.get("exclusive_duration", "[]")
+                )
+                span_list = self._parse_array_field(log.get("span_list", "[]"))
 
                 # 确保数组长度一致
-                if len(span_ids) != len(exclusive_durations) or len(span_ids) != len(span_indices):
-                    logger.warning("数组长度不一致 - span_id(%d), span_index(%d), exclusive_duration(%d)", 
-                                 len(span_ids), len(span_indices), len(exclusive_durations))
+                if len(span_ids) != len(exclusive_durations) or len(span_ids) != len(
+                    span_indices
+                ):
+                    logger.warning(
+                        "数组长度不一致 - span_id(%d), span_index(%d), exclusive_duration(%d)",
+                        len(span_ids),
+                        len(span_indices),
+                        len(exclusive_durations),
+                    )
                     continue
 
                 # 收集span_id和对应的exclusive_duration，同时从span_list获取serviceName和spanName
@@ -278,7 +308,9 @@ class FindRootCauseSpansRT:
                     if self.minus_average and self.span_average_durations:
                         # 需要减去平均值的情况：先计算所有span的调整后时间，再选择top-1
                         adjusted_spans = []
-                        for span_id, span_index, duration in zip(span_ids, span_indices, exclusive_durations):
+                        for span_id, span_index, duration in zip(
+                            span_ids, span_indices, exclusive_durations
+                        ):
                             if isinstance(duration, (int, float)) and duration > 0:
                                 # 截断异常长的duration，处理outliers
                                 truncated_duration = min(duration, MAX_DURATION)
@@ -287,52 +319,94 @@ class FindRootCauseSpansRT:
                                 adjusted_duration = truncated_duration
                                 if span_list and 0 <= span_index < len(span_list):
                                     span_info = span_list[span_index]
-                                    service_name, span_name = self._extract_service_and_span_name(span_info)
+                                    service_name, span_name = (
+                                        self._extract_service_and_span_name(span_info)
+                                    )
                                     if service_name and span_name:
                                         combined_key = f"{service_name}<sep>{span_name}"
                                         if combined_key in self.span_average_durations:
-                                            avg_duration = self.span_average_durations[combined_key]
-                                            adjusted_duration = max(0, truncated_duration - avg_duration)
-                                            adjusted_duration = min(adjusted_duration, MAX_DURATION)
+                                            avg_duration = self.span_average_durations[
+                                                combined_key
+                                            ]
+                                            adjusted_duration = max(
+                                                0, truncated_duration - avg_duration
+                                            )
+                                            adjusted_duration = min(
+                                                adjusted_duration, MAX_DURATION
+                                            )
 
-                                adjusted_spans.append((span_id, span_index, adjusted_duration, truncated_duration))
+                                adjusted_spans.append(
+                                    (
+                                        span_id,
+                                        span_index,
+                                        adjusted_duration,
+                                        truncated_duration,
+                                    )
+                                )
 
                         # 找到调整后独占时间最长的span
                         if adjusted_spans:
-                            top_span = max(adjusted_spans, key=lambda x: x[2])  # 按调整后的duration排序
-                            span_id, span_index, adjusted_duration, original_duration = top_span
-                            span_duration_mapping[span_id] = original_duration  # 存储原始时间，后续会再次调整
+                            top_span = max(
+                                adjusted_spans, key=lambda x: x[2]
+                            )  # 按调整后的duration排序
+                            (
+                                span_id,
+                                span_index,
+                                adjusted_duration,
+                                original_duration,
+                            ) = top_span
+                            span_duration_mapping[span_id] = (
+                                original_duration  # 存储原始时间，后续会再次调整
+                            )
 
                             # 通过span_index从span_list获取serviceName和spanName
                             if span_list and 0 <= span_index < len(span_list):
                                 span_info = span_list[span_index]
-                                service_name, span_name = self._extract_service_and_span_name(span_info)
+                                service_name, span_name = (
+                                    self._extract_service_and_span_name(span_info)
+                                )
                                 if service_name and span_name:
-                                    span_service_mapping[span_id] = (service_name, span_name)
+                                    span_service_mapping[span_id] = (
+                                        service_name,
+                                        span_name,
+                                    )
                     else:
                         # 不需要减去平均值的情况：直接找原始独占时间最长的span
                         valid_spans = []
-                        for span_id, span_index, duration in zip(span_ids, span_indices, exclusive_durations):
+                        for span_id, span_index, duration in zip(
+                            span_ids, span_indices, exclusive_durations
+                        ):
                             if isinstance(duration, (int, float)) and duration > 0:
                                 # 截断异常长的duration，处理outliers
                                 truncated_duration = min(duration, MAX_DURATION)
-                                valid_spans.append((span_id, span_index, truncated_duration))
+                                valid_spans.append(
+                                    (span_id, span_index, truncated_duration)
+                                )
 
                         # 找到原始独占时间最长的span
                         if valid_spans:
-                            top_span = max(valid_spans, key=lambda x: x[2])  # 按原始duration排序
+                            top_span = max(
+                                valid_spans, key=lambda x: x[2]
+                            )  # 按原始duration排序
                             span_id, span_index, duration = top_span
                             span_duration_mapping[span_id] = duration
 
                             # 通过span_index从span_list获取serviceName和spanName
                             if span_list and 0 <= span_index < len(span_list):
                                 span_info = span_list[span_index]
-                                service_name, span_name = self._extract_service_and_span_name(span_info)
+                                service_name, span_name = (
+                                    self._extract_service_and_span_name(span_info)
+                                )
                                 if service_name and span_name:
-                                    span_service_mapping[span_id] = (service_name, span_name)
+                                    span_service_mapping[span_id] = (
+                                        service_name,
+                                        span_name,
+                                    )
                 else:
                     # 处理所有span（原始逻辑）
-                    for span_id, span_index, duration in zip(span_ids, span_indices, exclusive_durations):
+                    for span_id, span_index, duration in zip(
+                        span_ids, span_indices, exclusive_durations
+                    ):
                         if isinstance(duration, (int, float)) and duration > 0:
                             # 截断异常长的duration，处理outliers
                             truncated_duration = min(duration, MAX_DURATION)
@@ -341,9 +415,14 @@ class FindRootCauseSpansRT:
                             # 通过span_index从span_list获取serviceName和spanName
                             if span_list and 0 <= span_index < len(span_list):
                                 span_info = span_list[span_index]
-                                service_name, span_name = self._extract_service_and_span_name(span_info)
+                                service_name, span_name = (
+                                    self._extract_service_and_span_name(span_info)
+                                )
                                 if service_name and span_name:
-                                    span_service_mapping[span_id] = (service_name, span_name)
+                                    span_service_mapping[span_id] = (
+                                        service_name,
+                                        span_name,
+                                    )
 
             except Exception as e:
                 logger.error("处理日志数据时发生错误: %s", e)
@@ -354,28 +433,50 @@ class FindRootCauseSpansRT:
             return []
 
         logger.info("总共找到 %d 个有效的span独占时间数据", len(span_duration_mapping))
-        logger.info("成功映射 %d 个span的serviceName和spanName", len(span_service_mapping))
+        logger.info(
+            "成功映射 %d 个span的serviceName和spanName", len(span_service_mapping)
+        )
 
         # 智能方案选择：检查方案1的成功率
         if self.minus_average and self.span_average_durations:
             if span_service_mapping:
                 # 计算方案1的覆盖率
                 coverage_rate = len(span_service_mapping) / len(span_duration_mapping)
-                logger.info("方案1覆盖率: %.2f%% (%d/%d)", coverage_rate * 100, len(span_service_mapping), len(span_duration_mapping))
+                logger.info(
+                    "方案1覆盖率: %.2f%% (%d/%d)",
+                    coverage_rate * 100,
+                    len(span_service_mapping),
+                    len(span_duration_mapping),
+                )
 
                 # 如果覆盖率大于50%，使用方案1；否则fallback到方案2
                 if coverage_rate > 0.5:
-                    logger.info("✅ 选择方案1：直接使用span_list中的serviceName和spanName（推荐）")
-                    adjusted_span_durations = self._adjust_durations_directly(span_duration_mapping, span_service_mapping)
+                    logger.info(
+                        "✅ 选择方案1：直接使用span_list中的serviceName和spanName（推荐）"
+                    )
+                    adjusted_span_durations = self._adjust_durations_directly(
+                        span_duration_mapping, span_service_mapping
+                    )
                 else:
-                    logger.warning("⚠️  方案1覆盖率较低，fallback到方案2：重新查询并采样")
-                    adjusted_span_durations = self._adjust_durations_with_span_average(span_duration_mapping)
+                    logger.warning(
+                        "⚠️  方案1覆盖率较低，fallback到方案2：重新查询并采样"
+                    )
+                    adjusted_span_durations = self._adjust_durations_with_span_average(
+                        span_duration_mapping
+                    )
             else:
-                logger.warning("⚠️  方案1失败：span_list中没有找到serviceName和spanName，fallback到方案2")
-                adjusted_span_durations = self._adjust_durations_with_span_average(span_duration_mapping)
+                logger.warning(
+                    "⚠️  方案1失败：span_list中没有找到serviceName和spanName，fallback到方案2"
+                )
+                adjusted_span_durations = self._adjust_durations_with_span_average(
+                    span_duration_mapping
+                )
         else:
             # 即使不减去平均值，也要截断异常长的duration，处理outliers
-            adjusted_span_durations = [(span_id, min(duration, MAX_DURATION)) for span_id, duration in span_duration_mapping.items()]
+            adjusted_span_durations = [
+                (span_id, min(duration, MAX_DURATION))
+                for span_id, duration in span_duration_mapping.items()
+            ]
 
         # 按独占时间降序排序
         adjusted_span_durations.sort(key=lambda x: x[1], reverse=True)
@@ -390,7 +491,7 @@ class FindRootCauseSpansRT:
 
         # 找出占前95%的span
         cumulative_duration = 0
-        target_duration = total_duration * PERCENT_95 # * 0.95
+        target_duration = total_duration * PERCENT_95  # * 0.95
         top_95_percent_spans = []
 
         for span_id, duration in adjusted_span_durations:
@@ -401,8 +502,11 @@ class FindRootCauseSpansRT:
                 break
 
         logger.info("占前95%%独占时间的span数量: %d", len(top_95_percent_spans))
-        logger.info("这些span的累计独占时间: %d, 占总时间的: %.2f%%", 
-                   cumulative_duration, cumulative_duration/total_duration*100)
+        logger.info(
+            "这些span的累计独占时间: %d, 占总时间的: %.2f%%",
+            cumulative_duration,
+            cumulative_duration / total_duration * 100,
+        )
 
         return top_95_percent_spans
 
@@ -425,9 +529,15 @@ class FindRootCauseSpansRT:
 
         # 采样优化：如果span数量超过HIGH_RT_TRACES，随机采样
         if len(span_ids) > HIGH_RT_TRACES:
-            sorted_span_ids = sorted(span_ids, key=lambda x: span_duration_mapping[x], reverse=True)
+            sorted_span_ids = sorted(
+                span_ids, key=lambda x: span_duration_mapping[x], reverse=True
+            )
             sampled_span_ids = sorted_span_ids[:HIGH_RT_TRACES]
-            logger.info("从 %d 个span中采样了 %d 个进行查询", len(span_ids), len(sampled_span_ids))
+            logger.info(
+                "从 %d 个span中采样了 %d 个进行查询",
+                len(span_ids),
+                len(sampled_span_ids),
+            )
         else:
             sampled_span_ids = span_ids
             logger.info("span数量(%d)不超过限制，查询所有span", len(span_ids))
@@ -437,8 +547,10 @@ class FindRootCauseSpansRT:
         span_service_mapping = {}  # 存储span_id到(serviceName, spanName)的映射
 
         for i in range(0, len(sampled_span_ids), batch_size):
-            batch_span_ids = sampled_span_ids[i:i+batch_size]
-            span_conditions = " or ".join([f"spanId='{span_id}'" for span_id in batch_span_ids])
+            batch_span_ids = sampled_span_ids[i : i + batch_size]
+            span_conditions = " or ".join(
+                [f"spanId='{span_id}'" for span_id in batch_span_ids]
+            )
             service_query = f"* | select spanId, serviceName, spanName from log where {span_conditions}"
 
             request = GetLogsRequest(
@@ -451,24 +563,34 @@ class FindRootCauseSpansRT:
             )
 
             try:
-                logger.info("查询第 %d 批，共 %d 个span的serviceName和spanName...", i//batch_size + 1, len(batch_span_ids))
+                logger.info(
+                    "查询第 %d 批，共 %d 个span的serviceName和spanName...",
+                    i // batch_size + 1,
+                    len(batch_span_ids),
+                )
                 response = self.client.get_logs(request)
-                service_logs = [log_item.get_contents() for log_item in response.get_logs()] if response else []
+                service_logs = (
+                    [log_item.get_contents() for log_item in response.get_logs()]
+                    if response
+                    else []
+                )
                 logger.info("查询到 %d 条记录", len(service_logs))
 
                 # 构建span_id到(serviceName, spanName)的映射
                 for log in service_logs:
-                    span_id = log.get('spanId')
-                    service_name = log.get('serviceName')
-                    span_name = log.get('spanName')
+                    span_id = log.get("spanId")
+                    service_name = log.get("serviceName")
+                    span_name = log.get("spanName")
                     if span_id and service_name and span_name:
                         span_service_mapping[span_id] = (service_name, span_name)
 
             except Exception as e:
-                logger.error("查询第 %d 批时发生错误: %s", i//batch_size + 1, e)
+                logger.error("查询第 %d 批时发生错误: %s", i // batch_size + 1, e)
                 continue
 
-        logger.info("成功映射 %d 个span的serviceName和spanName", len(span_service_mapping))
+        logger.info(
+            "成功映射 %d 个span的serviceName和spanName", len(span_service_mapping)
+        )
 
         # 使用for循环在本地计算调整后的时间
         logger.info("开始本地计算调整后的独占时间...")
@@ -481,7 +603,9 @@ class FindRootCauseSpansRT:
 
                 if combined_key in self.span_average_durations:
                     avg_duration = self.span_average_durations[combined_key]
-                    adjusted_duration = max(0, original_duration - avg_duration)  # 确保不为负数
+                    adjusted_duration = max(
+                        0, original_duration - avg_duration
+                    )  # 确保不为负数
 
                     adjusted_duration = min(adjusted_duration, MAX_DURATION)
                     # print(f"span {span_id} 服务 {service_name} spanName {span_name}: 原始时间={original_duration}, 平均时间={avg_duration:.2f}, 调整后时间={adjusted_duration:.2f}")
@@ -498,7 +622,9 @@ class FindRootCauseSpansRT:
         logger.info("完成 %d 个span的时间调整计算", len(adjusted_durations))
         return adjusted_durations
 
-    def _adjust_durations_directly(self, span_duration_mapping: dict, span_service_mapping: dict) -> list:
+    def _adjust_durations_directly(
+        self, span_duration_mapping: dict, span_service_mapping: dict
+    ) -> list:
         """
         根据serviceName和spanName组合的平均值调整独占时间
         方案1：直接使用span_list中的serviceName和spanName（性能最优）
@@ -511,7 +637,9 @@ class FindRootCauseSpansRT:
             调整后的(span_id, adjusted_duration)列表
         """
         logger.info("🚀 [方案1] 使用span_list中的serviceName和spanName进行调整...")
-        logger.info("🚀 [方案1] 无需额外查询，直接处理 %d 个span", len(span_duration_mapping))
+        logger.info(
+            "🚀 [方案1] 无需额外查询，直接处理 %d 个span", len(span_duration_mapping)
+        )
 
         adjusted_durations = []
         span_ids = list(span_duration_mapping.keys())
@@ -528,7 +656,9 @@ class FindRootCauseSpansRT:
 
                 if combined_key in self.span_average_durations:
                     avg_duration = self.span_average_durations[combined_key]
-                    adjusted_duration = max(0, original_duration - avg_duration)  # 确保不为负数
+                    adjusted_duration = max(
+                        0, original_duration - avg_duration
+                    )  # 确保不为负数
 
                     adjusted_duration = min(adjusted_duration, MAX_DURATION)
                     # print(f"span {span_id} 服务 {service_name} spanName {span_name}: 原始时间={original_duration}, 平均时间={avg_duration:.2f}, 调整后时间={adjusted_duration:.2f}")
@@ -559,20 +689,25 @@ class FindRootCauseSpansRT:
         try:
             # 格式1：字典格式
             if isinstance(span_info, dict):
-                service_name = span_info.get('servicename', '') or span_info.get('serviceName', '')
-                span_name = span_info.get('spanname', '') or span_info.get('spanName', '')
+                service_name = span_info.get("servicename", "") or span_info.get(
+                    "serviceName", ""
+                )
+                span_name = span_info.get("spanname", "") or span_info.get(
+                    "spanName", ""
+                )
                 return service_name, span_name
 
             # 格式2：列表/元组格式，按照SPL查询中的字段顺序
             # 顺序：spanid, parentspanid, statuscode, servicename, spanname, hostname, kind, ...
             elif isinstance(span_info, (list, tuple)) and len(span_info) >= 5:
-                service_name = span_info[3] if len(span_info) > 3 else ''
-                span_name = span_info[4] if len(span_info) > 4 else ''
+                service_name = span_info[3] if len(span_info) > 3 else ""
+                span_name = span_info[4] if len(span_info) > 4 else ""
                 return service_name, span_name
 
             # 格式3：字符串格式（可能是JSON字符串）
             elif isinstance(span_info, str):
                 import json
+
                 try:
                     parsed_info = json.loads(span_info)
                     return self._extract_service_and_span_name(parsed_info)  # 递归处理
@@ -580,11 +715,11 @@ class FindRootCauseSpansRT:
                     pass
 
             logger.warning("无法解析span_info格式: %s", type(span_info))
-            return '', ''
+            return "", ""
 
         except Exception as e:
             logger.error("提取serviceName和spanName时发生错误: %s", e)
-            return '', ''
+            return "", ""
 
     def _parse_array_field(self, field_value: str) -> list:
         """
@@ -598,7 +733,7 @@ class FindRootCauseSpansRT:
         """
         import json
 
-        if not field_value or field_value == '[]':
+        if not field_value or field_value == "[]":
             return []
 
         try:
@@ -608,11 +743,15 @@ class FindRootCauseSpansRT:
             try:
                 # 如果直接解析失败，尝试处理可能的格式问题
                 cleaned_value = field_value.strip()
-                if cleaned_value.startswith('[') and cleaned_value.endswith(']'):
+                if cleaned_value.startswith("[") and cleaned_value.endswith("]"):
                     return json.loads(cleaned_value)
                 else:
                     # 如果不是数组格式，尝试按逗号分割
-                    return [item.strip().strip('"\'') for item in cleaned_value.split(',') if item.strip()]
+                    return [
+                        item.strip().strip("\"'")
+                        for item in cleaned_value.split(",")
+                        if item.strip()
+                    ]
             except:
                 logger.warning("无法解析数组字段: %s", field_value)
                 return []
@@ -641,7 +780,7 @@ class FindRootCauseSpansRT:
         """
 
         # 首先获取独占时间数据
-        print ("获取独占时间数据...")
+        logger.info("获取独占时间数据...")
         # exclusive_duration_query = get_spl_query(self.duration_threshold, TRACES_FOR_AVG_RT)
         exclusive_duration_query = get_spl_query(0, TRACES_FOR_AVG_RT)
 
@@ -656,7 +795,11 @@ class FindRootCauseSpansRT:
 
         try:
             response = self.client.get_logs(request)
-            logs = [log_item.get_contents() for log_item in response.get_logs()] if response else []
+            logs = (
+                [log_item.get_contents() for log_item in response.get_logs()]
+                if response
+                else []
+            )
             logger.info("正常时间段查询到的独占时间日志条数: %d", len(logs))
 
             # 收集所有的span_id和对应的独占时间
@@ -666,8 +809,10 @@ class FindRootCauseSpansRT:
 
             for log in logs:
                 try:
-                    span_ids = self._parse_array_field(log.get('span_id', '[]'))
-                    exclusive_durations = self._parse_array_field(log.get('exclusive_duration', '[]'))
+                    span_ids = self._parse_array_field(log.get("span_id", "[]"))
+                    exclusive_durations = self._parse_array_field(
+                        log.get("exclusive_duration", "[]")
+                    )
 
                     if len(span_ids) != len(exclusive_durations):
                         continue
@@ -700,9 +845,13 @@ class FindRootCauseSpansRT:
         span_ids = list(span_duration_mapping.keys())
         if len(span_ids) > TRACES_FOR_AVG_RT:
             # span_ids = random.sample(span_ids, TRACES_FOR_AVG_RT)
-            sorted_span_ids = sorted(span_ids, key=lambda x: span_duration_mapping[x], reverse=True)
+            sorted_span_ids = sorted(
+                span_ids, key=lambda x: span_duration_mapping[x], reverse=True
+            )
             span_ids = sorted_span_ids[:TRACES_FOR_AVG_RT]
-            span_duration_mapping = {span_id: span_duration_mapping[span_id] for span_id in span_ids}
+            span_duration_mapping = {
+                span_id: span_duration_mapping[span_id] for span_id in span_ids
+            }
             logger.info("从原始span中采样了 %d 个用于计算平均值", len(span_ids))
         else:
             logger.info("span数量(%d)不超过限制，使用所有span计算平均值", len(span_ids))
@@ -712,8 +861,10 @@ class FindRootCauseSpansRT:
         service_durations = {}  # {serviceName<sep>spanName: [duration1, duration2, ...]}
 
         for i in range(0, len(span_ids), batch_size):
-            batch_span_ids = span_ids[i:i+batch_size]
-            span_conditions = " or ".join([f"spanId='{span_id}'" for span_id in batch_span_ids])
+            batch_span_ids = span_ids[i : i + batch_size]
+            span_conditions = " or ".join(
+                [f"spanId='{span_id}'" for span_id in batch_span_ids]
+            )
 
             service_query = f"* | select spanId, serviceName, spanName from log  where {span_conditions}"
 
@@ -727,16 +878,24 @@ class FindRootCauseSpansRT:
             )
 
             try:
-                logger.info("查询第 %d 批，共 %d 个span...", i//batch_size + 1, len(batch_span_ids))
+                logger.info(
+                    "查询第 %d 批，共 %d 个span...",
+                    i // batch_size + 1,
+                    len(batch_span_ids),
+                )
                 response = self.client.get_logs(request)
-                service_logs = [log_item.get_contents() for log_item in response.get_logs()] if response else []
+                service_logs = (
+                    [log_item.get_contents() for log_item in response.get_logs()]
+                    if response
+                    else []
+                )
                 logger.info("查询到 %d 条记录", len(service_logs))
 
                 # 使用for循环在本地计算
                 for log in service_logs:
-                    span_id = log.get('spanId')
-                    service_name = log.get('serviceName')
-                    span_name = log.get('spanName')
+                    span_id = log.get("spanId")
+                    service_name = log.get("serviceName")
+                    span_name = log.get("spanName")
 
                     if span_id in span_duration_mapping and service_name and span_name:
                         duration = span_duration_mapping[span_id]
@@ -747,7 +906,7 @@ class FindRootCauseSpansRT:
                         service_durations[combined_key].append(duration)
 
             except Exception as e:
-                logger.error("查询第 %d 批时发生错误: %s", i//batch_size + 1, e)
+                logger.error("查询第 %d 批时发生错误: %s", i // batch_size + 1, e)
                 continue
 
         # 计算每个serviceName<sep>spanName组合的平均值
@@ -755,9 +914,15 @@ class FindRootCauseSpansRT:
             if durations:
                 avg_duration = np.mean(durations)
                 self.span_average_durations[combined_key] = avg_duration
-                logger.info("组合键 %s 的平均独占时间: %.2f", combined_key, avg_duration)
+                logger.info(
+                    "组合键 %s 的平均独占时间: %.2f", combined_key, avg_duration
+                )
 
-        logger.info("共计算了 %d 个serviceName<sep>spanName组合的平均独占时间", len(self.span_average_durations))
+        logger.info(
+            "共计算了 %d 个serviceName<sep>spanName组合的平均独占时间",
+            len(self.span_average_durations),
+        )
+
 
 # def test_optimized_versions():
 #     """测试自动方案选择机制"""
